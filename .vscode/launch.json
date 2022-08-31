@@ -1,0 +1,38 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach to Backend",
+            "type": "node",
+            "address": "localhost",
+            "port": 9229,
+            "request": "attach",
+            "restart": true,
+            "localRoot": "${workspaceRoot}/backend",
+            "remoteRoot": "/app"
+        },
+        {
+            "name": "Attach to Frontend",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://localhost",
+            "userDataDir": false,
+            "webRoot": "${workspaceFolder}/frontend/src",
+            "sourceMapPathOverrides": {
+                "/app/src/*": "${webRoot}/*"
+            }
+        },
+        {
+            "name": "Attach to Frontend (Brave)",
+            "type": "chrome",
+            "request": "launch",
+            "runtimeExecutable": "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+            "userDataDir": false,
+            "url": "http://localhost",
+            "webRoot": "${workspaceFolder}/frontend/src",
+            "sourceMapPathOverrides": {
+                "/app/src/*": "${webRoot}/*"
+            }
+        }
+    ]
+}

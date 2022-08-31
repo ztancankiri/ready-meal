@@ -1,0 +1,126 @@
+version: "3.9"
+
+services:
+    router:
+        image: traefik:v2.5
+        container_name: router
+        hostname: router
+        restart: always
+        command:
+            - "--log.level=FATAL"
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--entryPoints.web.address=:7777"
+        ports:
+            - "7777:7777"
+        labels:
+            - "traefik.docker.network=readymeal"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        networks:
+            - readymeal
+
+    mongo:
+        container_name: mongo
+        image: mongo
+        restart: always
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: root
+            MONGO_INITDB_ROOT_PASSWORD: example
+            TZ: "Europe/Berlin"
+        volumes:
+            - mongo-data:/data/db
+            - mongo-config:/data/configdb
+        networks:
+            - readymeal
+
+    mongo-express:
+        container_name: mongo-express
+        image: mongo-express
+        restart: always
+        depends_on:
+            - mongo
+        environment:
+            ME_CONFIG_SITE_BASEURL: '/dev/mongo'
+            ME_CONFIG_MONGODB_ADMINUSERNAME: root
+            ME_CONFIG_MONGODB_ADMINPASSWORD: example
+            ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
+            TZ: "Europe/Berlin"
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.mongoexpress-http.entrypoints=web"
+            - "traefik.http.routers.mongoexpress.rule=PathPrefix(`/dev/mongo`)"
+            - "traefik.http.services.mongoexpress.loadbalancer.server.port=8081"
+        networks:
+            - readymeal
+
+    stripe-cli:
+        image: stripe/stripe-cli
+        container_name: stripe-cli
+        restart: always
+        command: "listen --api-key ${STRIPE_API_KEY} --device-name ${STRIPE_DEVICE_NAME} --forward-to http://router:7777/api/v1/payment/webhook"
+        environment:
+            STRIPE_API_KEY: "sk_test_51L6bNyKMyjc8JMla08lBboCprt3VxWJFz0ZyNWICpvpb0hDWFlLL2wqBv2JQMlba0tX0Wv3IE6oBE4ccPRsidWFk005uWqvKeA"
+            STRIPE_DEVICE_NAME: "readymeal"
+            TZ: "Europe/Berlin"
+        networks:
+            - readymeal
+
+    backend:
+        container_name: backend
+        restart: always
+        build: ./backend
+        volumes:
+            - ./backend:/app
+            - backend-node-modules:/app/node_modules
+        environment:
+            CHOKIDAR_USEPOLLING: "true"
+            TZ: "Europe/Berlin"
+        ports:
+            - "9229:9229"
+        depends_on:
+            - mongo
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.backend-http.entrypoints=web"
+            - "traefik.http.routers.backend.rule=PathPrefix(`/api/v1`)"
+            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api/v1"
+            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=false"
+            - "traefik.http.routers.backend.middlewares=backend-strip"
+            - "traefik.http.services.backend.loadbalancer.server.port=7777"
+        networks:
+            - readymeal
+
+    frontend:
+        container_name: frontend
+        restart: always
+        build: ./frontend
+        volumes:
+            - ./frontend:/app
+            - frontend-node-modules:/app/node_modules
+        environment:
+            CHOKIDAR_USEPOLLING: "true"
+            TZ: "Europe/Berlin"
+        depends_on:
+            - backend
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.frontend-http.entrypoints=web"
+            - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+            - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+        networks:
+            - readymeal
+
+volumes:
+    mongo-data:
+        external: false
+    mongo-config:
+        external: false
+    backend-node-modules:
+        external: false
+    frontend-node-modules:
+        external: false
+
+networks:
+    readymeal:
+        external: false
